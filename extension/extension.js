@@ -358,8 +358,10 @@ class AntigravityIndicator extends PanelMenu.Button {
                 style_class: 'aau-footer-btn',
                 y_align: Clutter.ActorAlign.CENTER,
             });
+            // St.Spinner actor was removed in GNOME 48; SpinnerContent is the
+            // replacement and needs an explicit-sized actor to paint into.
             refreshBtn.set_child(this._refreshing
-                ? new St.Spinner({ spin_size: 14 })
+                ? new St.Widget({ content: new St.SpinnerContent(), width: 14, height: 14 })
                 : new St.Icon({ icon_name: 'view-refresh-symbolic', icon_size: 14 }));
             refreshBtn.connect('clicked', () => this._onRefresh());
             footer.add_child(refreshBtn);
