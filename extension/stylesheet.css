@@ -1,0 +1,86 @@
+/* Antigravity Usage extension styles */
+
+.aau-panel-value {
+    font-weight: 700;
+}
+
+.aau-menu {
+    min-width: 404px;
+}
+
+.aau-footer {
+    padding: 4px 10px 6px;
+    spacing: 6px;
+}
+
+.aau-footer-btn {
+    padding: 4px 6px;
+    border-radius: 6px;
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.aau-footer-btn:hover {
+    background-color: rgba(255, 255, 255, 0.16);
+}
+
+.aau-status-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 5px;
+    background-color: #3ddc84;
+    margin-right: 2px;
+}
+
+.aau-status-dot.offline {
+    background-color: #ea4335;
+}
+
+.aau-tooltip {
+    background-color: #1c1c1e;
+    color: #e8e8e8;
+    font-size: 9pt;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.aau-source-row {
+    padding: 8px 14px;
+    spacing: 10px;
+}
+
+.aau-source-name {
+    font-weight: 700;
+}
+
+.aau-metric-label {
+    font-size: 9pt;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.aau-metric-track {
+    height: 5px;
+    border-radius: 2px;
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.aau-metric-pct {
+    font-size: 9pt;
+    font-weight: 700;
+    font-family: monospace;
+}
+
+.aau-metric-detail {
+    font-size: 8pt;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.aau-error {
+    color: #ff8a80;
+}
+
+.aau-source-email {
+    font-size: 8pt;
+    color: rgba(255, 255, 255, 0.45);
+    max-width: 170px;
+}

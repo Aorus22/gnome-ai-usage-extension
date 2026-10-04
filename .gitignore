@@ -1,0 +1,13 @@
+# Compiled daemon binary
+daemon/antigravity-usage-daemon
+
+# ZCode local state
+.zcode/
+
+# Go
+*.test
+*.out
+
+# Editor / OS
+*.swp
+.DS_Store
