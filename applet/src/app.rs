@@ -4,20 +4,18 @@
 use std::sync::LazyLock;
 use std::time::Duration;
 
-use cosmic::iced::alignment::{Alignment, Vertical};
-use cosmic::iced::platform_specific::shell::wayland::commands::popup::{
-    destroy_popup, get_popup,
-};
+use cosmic::iced::alignment::{Alignment, Horizontal, Vertical};
+use cosmic::iced::platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup};
 use cosmic::iced::window::Id;
 use cosmic::iced::{Length, Limits, Subscription};
-use cosmic::widget::space::horizontal;
 use cosmic::widget::autosize::autosize;
-use cosmic::{widget, Action, Application, Element, Task};
+use cosmic::widget::space::horizontal;
+use cosmic::{Action, Application, Element, Task, widget};
 
 use crate::daemon::{self, DaemonMsg, Metric, Source};
 
 const POPUP_WIDTH: f32 = 360.0; // popup_container's fixed width
-const CONTENT_PADDING: f32 = 8.0;
+const CONTENT_PADDING: f32 = 12.0;
 const LABEL_WIDTH: f32 = 84.0;
 const PCT_WIDTH: f32 = 46.0;
 const ROW_SPACING: f32 = 8.0;
@@ -35,13 +33,18 @@ const ANTIGRAVITY_SVG: &[u8] = include_bytes!("../../icons/antigravity.svg");
 const CODEX_SVG: &[u8] = include_bytes!("../../icons/codex.svg");
 const COREWEAVE_SVG: &[u8] = include_bytes!("../../icons/coreweave.svg");
 
-// The applet surface starts icon-sized (libcosmic window_settings); autosize
-// grows it to fit the percent label — the same pattern as cosmic-applet-time.
+// The applet surface is pinned to the badge size in init (the panel only
+// honors resizes on compositor configure events), with the label in a fixed
+// width so the badge never outgrows it; autosize is kept as a harmless
+// fallback like cosmic-applet-time.
 static AUTOSIZE_MAIN_ID: LazyLock<cosmic::widget::Id> =
     LazyLock::new(|| cosmic::widget::Id::new("autosize-main"));
 
 pub struct App {
     core: cosmic::Core,
+    /// Panel icon size, captured before the surface size is pinned: with a
+    /// hardcoded applet size, suggested_size reports the badge, not the icon.
+    icon_size: (u16, u16),
     popup: Option<Id>,
     online: bool,
     sources: Option<Vec<Source>>,
@@ -73,10 +76,17 @@ impl Application for App {
         &mut self.core
     }
 
-    fn init(core: cosmic::Core, _flags: Self::Flags) -> (Self, Task<Action<Message>>) {
+    fn init(mut core: cosmic::Core, _flags: Self::Flags) -> (Self, Task<Action<Message>>) {
+        // Pin the applet surface to the badge size up front. The panel only
+        // honors applet resizes on compositor configure events, so a surface
+        // created icon-sized would stay icon-sized and clip the label.
+        let icon_size = core.applet.suggested_size(false);
+        let badge_w = icon_size.0 + 4 + (f32::from(icon_size.0) * 1.75).round() as u16;
+        core.applet.window_size(badge_w, icon_size.1);
         (
             App {
                 core,
+                icon_size,
                 popup: None,
                 online: false,
                 sources: None,
@@ -93,7 +103,7 @@ impl Application for App {
     /// Panel button: brand icon of the live source + its percent.
     fn view(&self) -> Element<'_, Message> {
         let (icon_bytes, label) = self.panel_badge();
-        let (icon_w, icon_h) = self.core.applet.suggested_size(false);
+        let (icon_w, icon_h) = self.icon_size;
         // Flat AppletIcon style with the panel's suggested padding, like
         // applet.text_button, but sized to the full icon+percent row.
         let (major_pad, minor_pad) = self.core.applet.suggested_padding(true);
@@ -102,6 +112,12 @@ impl Application for App {
         } else {
             (minor_pad, major_pad)
         };
+        // The label sits in a width reserved off the icon size, so the badge's
+        // natural size never changes with the data and the pinned surface
+        // always fits it.
+        let label = widget::container(self.core.applet.text(label))
+            .width(Length::Fixed(f32::from(icon_w) * 1.75))
+            .align_x(Horizontal::Center);
         let badge = widget::row::with_capacity(2)
             .spacing(4)
             .align_y(Alignment::Center)
@@ -110,7 +126,7 @@ impl Application for App {
                     .width(Length::Fixed(f32::from(icon_w)))
                     .height(Length::Fixed(f32::from(icon_h))),
             )
-            .push(self.core.applet.text(label));
+            .push(label);
         let button = widget::button::custom(badge)
             .padding([vp, hp])
             .class(cosmic::theme::Button::AppletIcon)
@@ -145,14 +161,25 @@ impl Application for App {
         }
         content = content.push(footer(self.online, self.refreshing));
 
-        self.core
-            .applet
-            .popup_container(
-                widget::container(content)
-                    .width(Length::Fill)
-                    .padding(CONTENT_PADDING),
-            )
-            .into()
+        // Paint the popup body opaque. popup_container fills with the theme's
+        // frosted variant (near-transparent, meant to sit on compositor blur),
+        // which is unreadable when blur is not applied behind the popup.
+        let content = widget::container(content)
+            .width(Length::Fill)
+            .padding(CONTENT_PADDING)
+            .style(|theme: &cosmic::Theme| {
+                let cosmic = theme.cosmic();
+                widget::container::Style {
+                    background: Some(cosmic.background(false).base.into()),
+                    border: cosmic::iced::Border {
+                        radius: cosmic.corner_radii.radius_m.into(),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            });
+
+        self.core.applet.popup_container(content).into()
     }
 
     fn subscription(&self) -> Subscription<Message> {
