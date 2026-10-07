@@ -78,7 +78,9 @@ async fn drive(out: &mut Sender<Message>) -> Result<(), zbus::Error> {
     let proxy = AntigravityUsageProxy::new(&conn).await?;
 
     let mut changed = proxy.receive_sources_changed().await?;
-    let mut owners = dbus.receive_name_owner_changed_with_args(&[(0, NAME)]).await?;
+    let mut owners = dbus
+        .receive_name_owner_changed_with_args(&[(0, NAME)])
+        .await?;
 
     // Initial state: the daemon may already be on the bus.
     let name = BusName::try_from(NAME).expect("valid bus name");
