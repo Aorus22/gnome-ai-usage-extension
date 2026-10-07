@@ -5,7 +5,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use cosmic::iced::alignment::{Alignment, Horizontal, Vertical};
-use cosmic::iced::platform_specific::shell::wayland::commands::popup::{destroy_popup, get_popup};
+use cosmic::iced::platform_specific::shell::wayland::commands::popup::destroy_popup;
 use cosmic::iced::window::Id;
 use cosmic::iced::{Length, Limits, Subscription};
 use cosmic::widget::autosize::autosize;
@@ -198,21 +198,31 @@ impl Application for App {
                 return if let Some(popup) = self.popup.take() {
                     destroy_popup(popup)
                 } else {
-                    let new_id = Id::unique();
-                    self.popup.replace(new_id);
-                    let mut popup_settings = self.core.applet.get_popup_settings(
-                        self.core.main_window_id().unwrap(),
-                        new_id,
+                    // Open via libcosmic's surface task (like cosmic-applet-time),
+                    // not the raw iced get_popup: this registers the popup in
+                    // surface_views so the compositor blur (enable_blur) and
+                    // corner radius are applied on Opened.
+                    let open = cosmic::surface::surface_task(cosmic::surface::action::app_popup(
+                        |_| Default::default(),
+                        |app: &mut Self| {
+                            let new_id = Id::unique();
+                            app.popup.replace(new_id);
+                            let mut popup_settings = app.core.applet.get_popup_settings(
+                                app.core.main_window_id().unwrap(),
+                                new_id,
+                                None,
+                                None,
+                                None,
+                            );
+                            popup_settings.positioner.size_limits = Limits::NONE
+                                .min_width(POPUP_WIDTH)
+                                .max_width(POPUP_WIDTH)
+                                .min_height(1.0)
+                                .max_height(1080.0);
+                            popup_settings
+                        },
                         None,
-                        None,
-                        None,
-                    );
-                    popup_settings.positioner.size_limits = Limits::NONE
-                        .min_width(POPUP_WIDTH)
-                        .max_width(POPUP_WIDTH)
-                        .min_height(1.0)
-                        .max_height(1080.0);
-                    let open = get_popup(popup_settings);
+                    ));
                     // Freshen the numbers on every popup open.
                     if self.online {
                         let refresh = self.refresh_task();
