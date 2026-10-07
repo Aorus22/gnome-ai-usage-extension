@@ -18,7 +18,7 @@ mkdir -p "$EXT_DIR/icons"
 cp "$ROOT/extension/metadata.json" "$EXT_DIR/"
 cp "$ROOT/extension/extension.js" "$EXT_DIR/"
 cp "$ROOT/extension/stylesheet.css" "$EXT_DIR/" 2>/dev/null || true
-cp "$ROOT"/extension/icons/*.svg "$EXT_DIR/icons/"
+cp "$ROOT"/icons/*.svg "$EXT_DIR/icons/"
 
 echo "==> Installing sample config (kept if one already exists)"
 mkdir -p "$CONFIG_DIR"

@@ -1,6 +1,9 @@
 # Compiled daemon binary
 daemon/antigravity-usage-daemon
 
+# Rust applet build
+applet/target/
+
 # ZCode local state
 .zcode/
 
