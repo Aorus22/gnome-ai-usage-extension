@@ -1,22 +1,24 @@
 # AI Usage
 
-Live usage bars for AI providers (Antigravity, Codex, CoreWeave, ...) in the
-GNOME Shell top bar — like Docker's tray indicator, but driven by your own
-configurable sources.
+Live usage bars for AI providers (Antigravity, Codex, CoreWeave, ...) in your
+desktop panel — like Docker's tray indicator, but driven by your own
+configurable sources. One Go daemon publishes data over D-Bus; two thin UI
+clients render it: a GNOME Shell extension (GJS) and a COSMIC panel applet
+(Rust).
 
 ```
 ┌─────────────────────────┐   D-Bus session bus    ┌──────────────────────────┐
-│ antigravity-usage-daemon │  GetSources() method   │ gnome-shell extension    │
-│ (Go, systemd --user)     │  Refresh() method      │ (GJS, thin UI layer)     │
-│                          │  SourcesChanged signal │  panel: [icon] [value]   │
-│ config.toml ─▶ providers │                        │  menu: row per source    │
-│  ├─ command (CLI output) │                        │  icons per provider      │
-│  └─ http (REST + JSON)   │                        └──────────────────────────┘
-└─────────────────────────┘
+│ antigravity-usage-daemon │  GetSources() method   │ panel client             │
+│ (Go, systemd --user)     │  Refresh() method      │  · GNOME Shell extension │
+│                          │  SourcesChanged signal │  · COSMIC applet (Rust)  │
+│ config.toml ─▶ providers │                        │  panel: [icon] [value]   │
+│  ├─ command (CLI output) │                        │  popup: row per source   │
+│  └─ http (REST + JSON)   │                        │  icons per provider      │
+└─────────────────────────┘                        └──────────────────────────┘
 ```
 
 Adding a new usage source (Codex, CoreWeave, anything with a CLI or REST API)
-is a config change — the extension renders whatever the daemon publishes.
+is a config change — the clients render whatever the daemon publishes.
 A source whose poll or parse fails is hidden from the menu entirely rather
 than shown as an error line.
 
@@ -25,16 +27,31 @@ than shown as an error line.
 | Path | What |
 |---|---|
 | `daemon/` | Go daemon: config parsing, `command`/`http` providers, poll scheduler, D-Bus service (`dev.local.AntigravityUsage`) |
-| `extension/` | GJS source of truth: `extension.js`, `stylesheet.css`, provider SVGs in `icons/` |
-| `deploy/antigravity-usage.service` | systemd user unit |
-| `scripts/install.sh` | Build + install + enable everything (idempotent) |
+| `extension/` | GNOME Shell client (GJS): `extension.js`, `stylesheet.css` |
+| `applet/` | COSMIC panel applet (Rust + libcosmic + zbus) |
+| `icons/` | Brand SVGs shared by both clients (extension copies them, applet embeds them) |
+| `deploy/antigravity-usage.service` | systemd user unit (shared) |
+| `scripts/install.sh` | GNOME: build + install + enable everything (idempotent) |
+| `scripts/install-cosmic.sh` | COSMIC: build + install the applet |
 
 ## Install
+
+GNOME Shell:
 
 ```bash
 ./scripts/install.sh
 # then reload GNOME Shell: log out and back in (Wayland)
 ```
+
+COSMIC:
+
+```bash
+./scripts/install-cosmic.sh
+# one-time registration: COSMIC Settings > Panel > Applets > Add > "AI Usage"
+```
+
+Both clients share the same daemon and `~/.config/antigravity-usage/config.toml`;
+installing one does not affect the other.
 
 ## Configuration
 
@@ -107,8 +124,9 @@ answers again.
 ## Icons
 
 Each source gets an icon looked up as:
-1. `<extension>/icons/<icon>.svg` — drop your own SVG here to override,
-2. the theme icon `<icon>-symbolic`,
+1. `icons/<icon>.svg` at the repo root — drop your own SVG here to override
+   (the GNOME installer copies it, the COSMIC applet embeds it at build time),
+2. the theme icon `<icon>-symbolic` (GNOME only),
 3. the shipped `generic.svg` fallback.
 
 ## D-Bus API
@@ -119,6 +137,23 @@ Bus name `dev.local.AntigravityUsage`, path `/dev/local/AntigravityUsage`:
   `(id, label, icon, [(metric_label, used, limit, detail)], email)`, primary first
 - `Refresh()` — poll all sources now
 - signal `SourcesChanged()` — emitted whenever a poll updates state
+
+## COSMIC applet
+
+`applet/` is a libcosmic panel applet (Rust, zbus) speaking the same D-Bus
+API — the daemon is untouched. `scripts/install-cosmic.sh` builds it with
+`cargo build --release`, installs the binary to `~/.local/bin` and registers
+a `X-CosmicApplet=true` desktop entry in `~/.local/share/applications`; add
+"AI Usage" from COSMIC Settings > Panel > Applets (or append the applet id
+`dev.local.AntigravityUsageApplet` to
+`~/.config/cosmic/com.system76.CosmicPanel.Panel/v1/plugins_center` while the
+panel is stopped).
+
+Run it in-place from a COSMIC session for development:
+
+```bash
+cd applet && cargo run
+```
 
 ## Debug / development
 
@@ -143,4 +178,11 @@ this loop to capture panel/menu screenshots.
 systemctl --user disable --now antigravity-usage.service
 rm ~/.config/systemd/user/antigravity-usage.service
 rm -rf ~/.local/share/gnome-shell/extensions/antigravity-usage@local
+```
+
+COSMIC applet: remove it from the panel, then:
+
+```bash
+rm ~/.local/bin/cosmic-applet-antigravity-usage \
+   ~/.local/share/applications/dev.local.AntigravityUsageApplet.desktop
 ```
