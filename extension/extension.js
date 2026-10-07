@@ -73,25 +73,19 @@ function getProviderIcon(name, extensionPath) {
     return new Gio.FileIcon({ file: fallback });
 }
 
+// A metric whose detail starts with "error" is a failed poll or parse — it
+// carries no numbers, so callers drop it rather than paint a message where
+// a bar should be.
+function isErrorMetric(metric) {
+    const detail = metric[3];
+    return !!detail && detail.startsWith('error');
+}
+
 const MetricRow = GObject.registerClass(
 class MetricRow extends St.BoxLayout {
     _init(metric) {
         super._init({ vertical: true });
         const [label, used, limit, detail] = metric;
-
-        // A source-level failure renders as a single message line — no bar,
-        // no percent, nothing to misread as a real 0% quota.
-        if (detail && detail.startsWith('error')) {
-            const errLabel = new St.Label({
-                text: detail,
-                style_class: 'aau-metric-detail aau-error',
-                style: 'margin-top: 2px;',
-            });
-            errLabel.get_clutter_text().set_line_wrap(true);
-            errLabel.get_clutter_text().set_line_wrap_mode(Pango.WrapMode.WORD_CHAR);
-            this.add_child(errLabel);
-            return;
-        }
 
         const row = new St.BoxLayout({ vertical: false, style: 'spacing: 8px; margin-top: 6px;' });
         const pct = limit > 0 ? Math.max(0, Math.min(100, used / limit * 100)) : 0;
@@ -200,7 +194,9 @@ class SourceRow extends PopupMenu.PopupBaseMenuItem {
         }
         column.add_child(header);
 
-        for (const metric of metrics ?? []) {
+        // Failed metrics are dropped, not painted; a source with nothing
+        // usable left is skipped by the caller entirely.
+        for (const metric of (metrics ?? []).filter(m => !isErrorMetric(m))) {
             const row = new MetricRow(metric);
             column.add_child(row);
             row.attachDetailTo(column);
@@ -415,7 +411,24 @@ class AntigravityIndicator extends PanelMenu.Button {
         this._hideTooltip();
         this.menu.removeAll();
 
-        for (const source of this._sources ?? [])
+        // A source whose every metric failed carries no numbers — omit its
+        // section entirely instead of painting an error line.
+        const shown = (this._sources ?? []).filter(source =>
+            (source[3] ?? []).some(metric => !isErrorMetric(metric)));
+
+        if (shown.length === 0) {
+            const empty = new PopupMenu.PopupBaseMenuItem({
+                reactive: false,
+                style_class: 'aau-source-row',
+            });
+            empty.add_child(new St.Label({
+                text: 'No provider data',
+                style_class: 'aau-metric-detail',
+            }));
+            this.menu.addMenuItem(empty);
+        }
+
+        for (const source of shown)
             this.menu.addMenuItem(new SourceRow(source, this._extension.path));
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());

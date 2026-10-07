@@ -17,6 +17,8 @@ configurable sources.
 
 Adding a new usage source (Codex, CoreWeave, anything with a CLI or REST API)
 is a config change — the extension renders whatever the daemon publishes.
+A source whose poll or parse fails is hidden from the menu entirely rather
+than shown as an error line.
 
 ## Layout
 
@@ -98,8 +100,9 @@ the desktop session credentials.
 The community CLI [`antigravity-usage`](https://github.com/skainguyen1412/antigravity-usage)
 (`bun install -g antigravity-usage`) remains an alternative: it queries the
 local language server for per-model remaining fractions, but does not
-surface the weekly bucket. Data only flows while the IDE is open; when it
-is closed the bars keep their last value and show the error detail.
+surface the weekly bucket. Data only flows while the IDE is open; while
+it is closed the source's section stays hidden from the menu until it
+answers again.
 
 ## Icons
 
@@ -112,7 +115,8 @@ Each source gets an icon looked up as:
 
 Bus name `dev.local.AntigravityUsage`, path `/dev/local/AntigravityUsage`:
 
-- `GetSources() → a(ssdsss)` — `(id, label, value, unit, detail, icon)`, primary first
+- `GetSources() → a(sssa(sdds)s)` — sources as
+  `(id, label, icon, [(metric_label, used, limit, detail)], email)`, primary first
 - `Refresh()` — poll all sources now
 - signal `SourcesChanged()` — emitted whenever a poll updates state
 
