@@ -161,23 +161,12 @@ impl Application for App {
         }
         content = content.push(footer(self.online, self.refreshing));
 
-        // Paint the popup body opaque. popup_container fills with the theme's
-        // frosted variant (near-transparent, meant to sit on compositor blur),
-        // which is unreadable when blur is not applied behind the popup.
+        // No custom background here: popup_container already paints the
+        // theme's frosted layer (transparent + compositor blur), like the
+        // calendar applet. An opaque inner container would cover that blur.
         let content = widget::container(content)
             .width(Length::Fill)
-            .padding(CONTENT_PADDING)
-            .style(|theme: &cosmic::Theme| {
-                let cosmic = theme.cosmic();
-                widget::container::Style {
-                    background: Some(cosmic.background(false).base.into()),
-                    border: cosmic::iced::Border {
-                        radius: cosmic.corner_radii.radius_m.into(),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                }
-            });
+            .padding(CONTENT_PADDING);
 
         self.core.applet.popup_container(content).into()
     }
