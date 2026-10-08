@@ -32,6 +32,7 @@ const GENERIC_SVG: &[u8] = include_bytes!("../../icons/generic.svg");
 const ANTIGRAVITY_SVG: &[u8] = include_bytes!("../../icons/antigravity.svg");
 const CODEX_SVG: &[u8] = include_bytes!("../../icons/codex.svg");
 const COREWEAVE_SVG: &[u8] = include_bytes!("../../icons/coreweave.svg");
+const CLAUDE_SVG: &[u8] = include_bytes!("../../icons/claude.svg");
 
 // The applet surface is pinned to the badge size in init (the panel only
 // honors resizes on compositor configure events), with the label in a fixed
@@ -310,6 +311,7 @@ fn icon_bytes(name: &str) -> &'static [u8] {
         "antigravity" => ANTIGRAVITY_SVG,
         "codex" => CODEX_SVG,
         "coreweave" => COREWEAVE_SVG,
+        "claude" => CLAUDE_SVG,
         _ => GENERIC_SVG,
     }
 }
