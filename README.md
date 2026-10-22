@@ -1,10 +1,10 @@
 # AI Usage
 
-Live usage bars for AI providers (Antigravity, Codex, CoreWeave, ...) in your
-desktop panel — like Docker's tray indicator, but driven by your own
-configurable sources. One Go daemon publishes data over D-Bus; two thin UI
-clients render it: a GNOME Shell extension (GJS) and a COSMIC panel applet
-(Rust).
+Live usage bars for AI providers (Antigravity, Codex, Claude Code, Zed,
+CoreWeave, ...) in your desktop panel — like Docker's tray indicator, but
+driven by your own configurable sources. One Go daemon publishes data over
+D-Bus; two thin UI clients render it: a GNOME Shell extension (GJS) and a
+COSMIC panel applet (Rust).
 
 ```
 ┌─────────────────────────┐   D-Bus session bus    ┌──────────────────────────┐
@@ -120,6 +120,25 @@ local language server for per-model remaining fractions, but does not
 surface the weekly bucket. Data only flows while the IDE is open; while
 it is closed the source's section stays hidden from the menu until it
 answers again.
+
+### Zed
+
+Zed Pro and Student plans meter hosted-model usage in dollars against a
+monthly included credit ($10 for Student, $5 for Pro). The figure lives
+behind `https://cloud.zed.dev/frontend/billing/usage`, which is cookie-only:
+the editor's keychain token can reach `/client/users/me` (plan and
+edit-prediction quota) but not token spend.
+
+Open [dashboard.zed.dev](https://dashboard.zed.dev), then in DevTools →
+Network pick any `cloud.zed.dev` request, copy the `Cookie` request header and
+save it **without** the `Cookie:` prefix to
+`~/.config/antigravity-usage/zed-cookie` (`zed.session=…; …`), then
+`chmod 600` it — it is a live session token, good for about a month. The daemon
+re-reads the file on every poll, so refreshing the session is just overwriting
+that file.
+
+The sample metric reads `current_usage.token_spend.spend_in_cents` and
+compares it to the Student plan's $10 cap; lower `limit` to 5 for Pro.
 
 ## Icons
 

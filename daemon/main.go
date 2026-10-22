@@ -105,6 +105,25 @@ unit = "$"
 # limit = 250
 # reset = { type = "json", path = "data.next_reset" }
 # unit = "$"
+
+# Zed — AI credit for Pro / Student plans. The billing endpoint only accepts
+# the dashboard.zed.dev session cookie, so drop the Cookie header from
+# DevTools into a file and reference it with ${file:...}.
+# [[source]]
+# id = "zed"
+# label = "Zed"
+# icon = "zed"
+# provider = "http"
+# interval_secs = 300
+# url = "https://cloud.zed.dev/frontend/billing/usage"
+# headers = { Cookie = "${file:~/.config/antigravity-usage/zed-cookie}" }
+#
+# [[source.metric]]
+# label = "AI credit"
+# used = { type = "json", path = "current_usage.token_spend.spend_in_cents" }
+# scale = 0.01
+# limit = 10
+# unit = "$"
 `
 
 // writeSampleConfig installs the commented sample config if none exists yet.

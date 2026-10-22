@@ -87,12 +87,12 @@ class MetricRow extends St.BoxLayout {
         super._init({ vertical: true });
         const [label, used, limit, detail] = metric;
 
-        const row = new St.BoxLayout({ vertical: false, style: 'spacing: 8px; margin-top: 6px;' });
+        const row = new St.BoxLayout({ vertical: false, style: 'spacing: 6px; margin-top: 2px;' });
         const pct = limit > 0 ? Math.max(0, Math.min(100, used / limit * 100)) : 0;
 
         row.add_child(new St.Label({
             text: label,
-            style: 'width: 84px;',
+            style: 'width: 72px;',
             style_class: 'aau-metric-label',
             y_align: Clutter.ActorAlign.CENTER,
         }));
@@ -120,7 +120,7 @@ class MetricRow extends St.BoxLayout {
                 if (px === lastPx)
                     return;
                 lastPx = px;
-                fill.set_style(`width: ${px}px; height: 5px;` +
+                fill.set_style(`width: ${px}px; height: 4px;` +
                     `background-color: ${barColor(pct)}; border-radius: 2px;`);
             };
             track.connect('notify::allocation', apply);
@@ -129,8 +129,9 @@ class MetricRow extends St.BoxLayout {
 
         row.add_child(new St.Label({
             text: `${Math.round(pct)}%`,
-            style: 'width: 46px;',
+            style: 'width: 36px;',
             style_class: 'aau-metric-pct',
+            x_align: Clutter.ActorAlign.END,
             y_align: Clutter.ActorAlign.CENTER,
         }));
 
@@ -139,9 +140,9 @@ class MetricRow extends St.BoxLayout {
         if (detail) {
             const detailRow = new St.BoxLayout({
                 vertical: false,
-                style: 'spacing: 8px; margin-top: 2px;',
+                style: 'spacing: 6px; margin-top: 0px;',
             });
-            detailRow.add_child(new St.Widget({ style: 'width: 92px;' }));
+            detailRow.add_child(new St.Widget({ style: 'width: 78px;' }));
             const detailLabel = new St.Label({
                 text: detail,
                 style_class: 'aau-metric-detail',
@@ -168,10 +169,10 @@ class SourceRow extends PopupMenu.PopupBaseMenuItem {
         // D-Bus struct (sssa(sdds)s) unpacks to a plain array.
         const [, label, icon, metrics, email] = source;
 
-        const column = new St.BoxLayout({ vertical: true, x_expand: true });
+        const column = new St.BoxLayout({ vertical: true, x_expand: true, style: 'spacing: 2px;' });
 
         // Icon + provider name on the left, account email on the right.
-        const header = new St.BoxLayout({ vertical: false, style: 'spacing: 10px;' });
+        const header = new St.BoxLayout({ vertical: false, style: 'spacing: 8px;' });
         header.add_child(new St.Icon({
             gicon: getProviderIcon(icon, extensionPath),
             icon_size: 16,

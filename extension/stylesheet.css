@@ -5,7 +5,8 @@
 }
 
 .aau-menu {
-    min-width: 404px;
+    min-width: 348px;
+    padding: 4px 2px;
 }
 
 .aau-footer {
@@ -45,38 +46,39 @@
 }
 
 .aau-source-row {
-    padding: 8px 14px;
-    spacing: 10px;
+    padding: 5px 10px;
+    spacing: 8px;
 }
 
 .aau-source-name {
+    font-size: 10pt;
     font-weight: 700;
 }
 
 .aau-metric-label {
-    font-size: 9pt;
+    font-size: 8.5pt;
     color: rgba(255, 255, 255, 0.75);
 }
 
 .aau-metric-track {
-    height: 5px;
+    height: 4px;
     border-radius: 2px;
     background-color: rgba(255, 255, 255, 0.12);
 }
 
 .aau-metric-pct {
-    font-size: 9pt;
+    font-size: 8.5pt;
     font-weight: 700;
     font-family: monospace;
 }
 
 .aau-metric-detail {
-    font-size: 8pt;
+    font-size: 7.5pt;
     color: rgba(255, 255, 255, 0.5);
 }
 
 .aau-source-email {
-    font-size: 8pt;
+    font-size: 7.5pt;
     color: rgba(255, 255, 255, 0.45);
-    max-width: 170px;
+    max-width: 160px;
 }
