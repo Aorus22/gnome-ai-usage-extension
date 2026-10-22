@@ -11,7 +11,7 @@ COSMIC panel applet (Rust).
 │ antigravity-usage-daemon │  GetSources() method   │ panel client             │
 │ (Go, systemd --user)     │  Refresh() method      │  · GNOME Shell extension │
 │                          │  SourcesChanged signal │  · COSMIC applet (Rust)  │
-│ config.toml ─▶ providers │                        │  panel: [icon] [value]   │
+│ config.toml ─▶ providers │                        │  panel: pinned metrics   │
 │  ├─ command (CLI output) │                        │  popup: row per source   │
 │  └─ http (REST + JSON)   │                        │  icons per provider      │
 └─────────────────────────┘                        └──────────────────────────┘
@@ -53,12 +53,21 @@ COSMIC:
 Both clients share the same daemon and `~/.config/antigravity-usage/config.toml`;
 installing one does not affect the other.
 
+## Pin metrics
+
+Use the pin button next to a metric in the popup to show its percentage in the
+panel. You can pin several metrics; each appears with its provider icon and
+percentage. Pins are shared by both clients and saved in
+`~/.config/antigravity-usage/pinned-metrics`. Unpin a metric to remove it from
+the panel.
+
 ## Configuration
 
 `~/.config/antigravity-usage/config.toml` — the daemon writes an annotated
 sample on first start. Each source polls on its own interval and defines one
-or more metrics (progress bars); the source whose `id` matches `primary`
-becomes the panel badge (icon + percent of its first metric).
+or more metrics (progress bars). `primary` controls which source appears first
+in the menu. Pin individual metrics in the menu to show their percentages in
+the panel.
 
 ```toml
 primary = "antigravity"

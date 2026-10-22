@@ -1,5 +1,5 @@
-//! Applet model: panel badge + popup, mirroring the GNOME extension's behavior
-//! (extension/extension.js) with COSMIC theming.
+//! Applet model: pinned panel metrics + popup, mirroring the GNOME extension's
+//! behavior (extension/extension.js) with COSMIC theming.
 
 use std::sync::LazyLock;
 use std::time::Duration;
@@ -19,9 +19,10 @@ const CONTENT_PADDING: f32 = 12.0;
 const LABEL_WIDTH: f32 = 84.0;
 const PCT_WIDTH: f32 = 46.0;
 const ROW_SPACING: f32 = 8.0;
+const PIN_WIDTH: f32 = 18.0;
 // The bar track gets whatever is left of the fixed popup width.
 const TRACK_WIDTH: f32 =
-    POPUP_WIDTH - 2.0 * CONTENT_PADDING - LABEL_WIDTH - PCT_WIDTH - 2.0 * ROW_SPACING;
+    POPUP_WIDTH - 2.0 * CONTENT_PADDING - LABEL_WIDTH - PCT_WIDTH - PIN_WIDTH - 3.0 * ROW_SPACING;
 
 const OFFLINE_HINT: &str = "systemctl --user start antigravity-usage";
 const TOOLTIP_TEXT: &str =
@@ -50,6 +51,7 @@ pub struct App {
     popup: Option<Id>,
     online: bool,
     sources: Option<Vec<Source>>,
+    pinned: Vec<String>,
     refreshing: bool,
 }
 
@@ -61,6 +63,7 @@ pub enum Message {
     Refresh,
     RefreshTimeout,
     OpenConfig,
+    TogglePin(String),
 }
 
 impl Application for App {
@@ -81,9 +84,10 @@ impl Application for App {
     fn init(mut core: cosmic::Core, _flags: Self::Flags) -> (Self, Task<Action<Message>>) {
         // Pin the applet surface to the badge size up front. The panel only
         // honors applet resizes on compositor configure events, so a surface
-        // created icon-sized would stay icon-sized and clip the label.
+        // created icon-sized would stay icon-sized and clip the labels.
         let icon_size = core.applet.suggested_size(false);
-        let badge_w = icon_size.0 + 4 + (f32::from(icon_size.0) * 1.75).round() as u16;
+        let pinned = read_pinned_metrics();
+        let badge_w = panel_badge_width(icon_size, pinned.len());
         core.applet.window_size(badge_w, icon_size.1);
         (
             App {
@@ -92,6 +96,7 @@ impl Application for App {
                 popup: None,
                 online: false,
                 sources: None,
+                pinned,
                 refreshing: false,
             },
             Task::none(),
@@ -102,9 +107,9 @@ impl Application for App {
         Some(Message::PopupClosed(id))
     }
 
-    /// Panel button: brand icon of the live source + its percent.
+    /// Panel button: one provider icon + percentage per pinned metric.
     fn view(&self) -> Element<'_, Message> {
-        let (icon_bytes, label) = self.panel_badge();
+        let badges = self.panel_badges();
         let (icon_w, icon_h) = self.icon_size;
         // Flat AppletIcon style with the panel's suggested padding, like
         // applet.text_button, but sized to the full icon+percent row.
@@ -114,21 +119,22 @@ impl Application for App {
         } else {
             (minor_pad, major_pad)
         };
-        // The label sits in a width reserved off the icon size, so the badge's
-        // natural size never changes with the data and the pinned surface
-        // always fits it.
-        let label = widget::container(self.core.applet.text(label))
-            .width(Length::Fixed(f32::from(icon_w) * 1.75))
-            .align_x(Horizontal::Center);
-        let badge = widget::row::with_capacity(2)
+        let label_width = f32::from(icon_w) * 1.75;
+        let mut badge = widget::row::with_capacity(badges.len() * 2)
             .spacing(4)
-            .align_y(Alignment::Center)
-            .push(
-                widget::icon(widget::icon::from_svg_bytes(icon_bytes))
-                    .width(Length::Fixed(f32::from(icon_w)))
-                    .height(Length::Fixed(f32::from(icon_h))),
-            )
-            .push(label);
+            .align_y(Alignment::Center);
+        for (icon_bytes, text) in badges {
+            let label = widget::container(self.core.applet.text(text))
+                .width(Length::Fixed(label_width))
+                .align_x(Horizontal::Center);
+            badge = badge
+                .push(
+                    widget::icon(widget::icon::from_svg_bytes(icon_bytes))
+                        .width(Length::Fixed(f32::from(icon_w)))
+                        .height(Length::Fixed(f32::from(icon_h))),
+                )
+                .push(label);
+        }
         let button = widget::button::custom(badge)
             .padding([vp, hp])
             .class(cosmic::theme::Button::AppletIcon)
@@ -158,7 +164,7 @@ impl Application for App {
                 content = content.push(widget::text::caption("No provider data"));
             }
             for source in shown {
-                content = content.push(source_view(source));
+                content = content.push(source_view(source, &self.pinned));
             }
         }
         content = content.push(footer(self.online, self.refreshing));
@@ -187,6 +193,8 @@ impl Application for App {
             Message::Daemon(DaemonMsg::Sources(sources)) => {
                 self.online = true;
                 self.sources = Some(sources);
+                self.pinned = read_pinned_metrics();
+                self.resize_panel();
                 self.refreshing = false;
             }
             Message::Daemon(DaemonMsg::Offline) => {
@@ -245,6 +253,17 @@ impl Application for App {
                     Action::<Message>::None
                 });
             }
+            Message::TogglePin(key) => {
+                if let Some(index) = self.pinned.iter().position(|item| item == &key) {
+                    self.pinned.remove(index);
+                } else {
+                    self.pinned.push(key);
+                }
+                if let Err(error) = write_pinned_metrics(&self.pinned) {
+                    tracing::warn!("saving pinned metrics failed: {error}");
+                }
+                self.resize_panel();
+            }
         }
         Task::none()
     }
@@ -255,6 +274,13 @@ impl Application for App {
 }
 
 impl App {
+    fn resize_panel(&mut self) {
+        self.core.applet.window_size(
+            panel_badge_width(self.icon_size, self.pinned.len()),
+            self.icon_size.1,
+        );
+    }
+
     /// Ask the daemon to poll all sources now, with a 10s spinner guard.
     fn refresh_task(&mut self) -> Task<Action<Message>> {
         if self.refreshing {
@@ -275,36 +301,42 @@ impl App {
         ])
     }
 
-    /// (icon bytes, label) for the panel: percent of the first live metric of
-    /// the primary source, falling back to any source with live data so the
-    /// badge stays useful while e.g. the IDE is closed.
-    fn panel_badge(&self) -> (&'static [u8], String) {
+    /// One icon and percentage for every pinned metric, preserving pin order.
+    fn panel_badges(&self) -> Vec<(&'static [u8], String)> {
         let sources = self.sources.as_deref().unwrap_or(&[]);
-        let pick = sources
-            .first()
-            .and_then(first_live)
-            .or_else(|| sources.iter().find_map(first_live));
-        match pick {
-            Some((source, metric)) => {
-                let pct = (metric.used / metric.limit * 100.0).clamp(0.0, 100.0);
-                (icon_bytes(&source.icon), format!("{}%", pct.round()))
-            }
-            // No live data: keep the primary's icon (or generic) with an ellipsis.
-            None => match sources.first() {
-                Some(source) => (icon_bytes(&source.icon), "…".to_string()),
-                None => (GENERIC_SVG, "…".to_string()),
-            },
+        let mut badges = Vec::with_capacity(self.pinned.len().max(1));
+        for key in &self.pinned {
+            let Some((source_id, metric_label)) = key.split_once('\t') else {
+                continue;
+            };
+            let source = sources.iter().find(|source| source.id == source_id);
+            let metric = source.and_then(|source| {
+                source.metrics.iter().find(|metric| {
+                    metric.label == metric_label && metric.limit > 0.0 && !is_error_metric(metric)
+                })
+            });
+            let text = metric
+                .map(|metric| {
+                    let pct = (metric.used / metric.limit * 100.0).clamp(0.0, 100.0);
+                    format!("{}%", pct.round())
+                })
+                .unwrap_or_else(|| "…".to_string());
+            let icon = source.map_or(GENERIC_SVG, |source| icon_bytes(&source.icon));
+            badges.push((icon, text));
         }
+        if badges.is_empty() {
+            badges.push((GENERIC_SVG, "…".to_string()));
+        }
+        badges
     }
 }
 
-/// First metric with a limit, i.e. one that carries usable numbers.
-fn first_live(source: &Source) -> Option<(&Source, &Metric)> {
-    source
-        .metrics
-        .iter()
-        .find(|metric| metric.limit > 0.0)
-        .map(|metric| (source, metric))
+fn panel_badge_width(icon_size: (u16, u16), pin_count: usize) -> u16 {
+    let count = pin_count.max(1) as u32;
+    let icon_width = u32::from(icon_size.0);
+    let label_width = (f32::from(icon_size.0) * 1.75).round() as u32;
+    let one_badge = icon_width + 4 + label_width;
+    (one_badge * count + 4 * count.saturating_sub(1)).min(u32::from(u16::MAX)) as u16
 }
 
 fn icon_bytes(name: &str) -> &'static [u8] {
@@ -347,6 +379,37 @@ fn config_dir() -> std::path::PathBuf {
     base.join("antigravity-usage")
 }
 
+fn pinned_metrics_path() -> std::path::PathBuf {
+    config_dir().join("pinned-metrics")
+}
+
+fn read_pinned_metrics() -> Vec<String> {
+    let Ok(contents) = std::fs::read_to_string(pinned_metrics_path()) else {
+        return Vec::new();
+    };
+    let mut pins = Vec::new();
+    for key in contents.lines().filter(|key| !key.is_empty()) {
+        if !pins.iter().any(|existing| existing == key) {
+            pins.push(key.to_string());
+        }
+    }
+    pins
+}
+
+fn write_pinned_metrics(pins: &[String]) -> std::io::Result<()> {
+    let path = pinned_metrics_path();
+    let dir = path.parent().expect("pinned metrics path has parent");
+    std::fs::create_dir_all(dir)?;
+    let temporary = path.with_extension("tmp");
+    let contents = if pins.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n", pins.join("\n"))
+    };
+    std::fs::write(&temporary, contents)?;
+    std::fs::rename(temporary, path)
+}
+
 fn truncate_ellipsis(text: &str, max: usize) -> String {
     if text.chars().count() <= max {
         return text.to_string();
@@ -355,7 +418,7 @@ fn truncate_ellipsis(text: &str, max: usize) -> String {
     format!("{cut}…")
 }
 
-fn source_view(source: &Source) -> Element<'_, Message> {
+fn source_view<'a>(source: &'a Source, pinned: &'a [String]) -> Element<'a, Message> {
     let header = widget::row::with_capacity(4)
         .spacing(8)
         .push(
@@ -375,7 +438,8 @@ fn source_view(source: &Source) -> Element<'_, Message> {
         .push(header);
     // Failed metrics are dropped, not painted.
     for metric in source.metrics.iter().filter(|m| !is_error_metric(m)) {
-        column = column.push(metric_row(metric));
+        let key = pin_key(&source.id, &metric.label);
+        column = column.push(metric_row(metric, pinned.contains(&key), key));
         if !metric.detail.is_empty() {
             // Indent details under the bar track, as in the extension.
             column = column.push(
@@ -388,7 +452,11 @@ fn source_view(source: &Source) -> Element<'_, Message> {
     widget::container(column).width(Length::Fill).into()
 }
 
-fn metric_row(metric: &Metric) -> Element<'_, Message> {
+fn pin_key(source_id: &str, metric_label: &str) -> String {
+    format!("{source_id}\t{metric_label}")
+}
+
+fn metric_row(metric: &Metric, pinned: bool, key: String) -> Element<'_, Message> {
     let pct = if metric.limit > 0.0 {
         ((metric.used / metric.limit * 100.0) as f32).clamp(0.0, 100.0)
     } else {
@@ -426,7 +494,7 @@ fn metric_row(metric: &Metric) -> Element<'_, Message> {
             ..Default::default()
         });
 
-    widget::row::with_capacity(3)
+    let mut row = widget::row::with_capacity(4)
         .spacing(ROW_SPACING)
         .push(
             widget::text(metric.label.clone())
@@ -439,8 +507,23 @@ fn metric_row(metric: &Metric) -> Element<'_, Message> {
                 .width(Length::Fixed(PCT_WIDTH))
                 .font(cosmic::font::semibold()),
         )
-        .align_y(Alignment::Center)
-        .into()
+        .align_y(Alignment::Center);
+    if metric.limit > 0.0 {
+        let pin = widget::button::icon(
+            widget::icon::from_name("view-pin-symbolic")
+                .size(14)
+                .symbolic(true),
+        )
+        .class(if pinned {
+            cosmic::theme::Button::Suggested
+        } else {
+            cosmic::theme::Button::Icon
+        })
+        .padding(2.0)
+        .on_press(Message::TogglePin(key));
+        row = row.push(pin);
+    }
+    row.into()
 }
 
 fn footer(online: bool, refreshing: bool) -> Element<'static, Message> {

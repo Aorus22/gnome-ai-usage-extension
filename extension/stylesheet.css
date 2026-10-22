@@ -4,6 +4,10 @@
     font-weight: 700;
 }
 
+.aau-panel-pins {
+    spacing: 8px;
+}
+
 .aau-menu {
     min-width: 348px;
     padding: 4px 2px;
@@ -70,6 +74,23 @@
     font-size: 8.5pt;
     font-weight: 700;
     font-family: monospace;
+}
+
+.aau-pin-button {
+    width: 20px;
+    height: 20px;
+    padding: 2px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.aau-pin-button:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.aau-pin-button.pinned {
+    color: #fbbc04;
 }
 
 .aau-metric-detail {

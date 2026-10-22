@@ -81,9 +81,37 @@ function isErrorMetric(metric) {
     return !!detail && detail.startsWith('error');
 }
 
+function pinKey(sourceId, metricLabel) {
+    return `${sourceId}\t${metricLabel}`;
+}
+
+function pinnedMetricsPath() {
+    return GLib.build_filenamev([
+        GLib.get_user_config_dir(), 'antigravity-usage', 'pinned-metrics',
+    ]);
+}
+
+function readPinnedMetrics() {
+    try {
+        const [ok, contents] = Gio.File.new_for_path(pinnedMetricsPath()).load_contents(null);
+        if (!ok)
+            return new Set();
+        return new Set(new TextDecoder().decode(contents).split('\n').filter(Boolean));
+    } catch (_e) {
+        return new Set();
+    }
+}
+
+function writePinnedMetrics(pins) {
+    const path = pinnedMetricsPath();
+    const dir = GLib.path_get_dirname(path);
+    GLib.mkdir_with_parents(dir, 0o700);
+    GLib.file_set_contents(path, `${[...pins].join('\n')}\n`);
+}
+
 const MetricRow = GObject.registerClass(
 class MetricRow extends St.BoxLayout {
-    _init(metric) {
+    _init(sourceId, metric, pinned, onTogglePin) {
         super._init({ vertical: true });
         const [label, used, limit, detail] = metric;
 
@@ -135,6 +163,17 @@ class MetricRow extends St.BoxLayout {
             y_align: Clutter.ActorAlign.CENTER,
         }));
 
+        if (limit > 0) {
+            const pinButton = new St.Button({
+                style_class: pinned ? 'aau-pin-button pinned' : 'aau-pin-button',
+                y_align: Clutter.ActorAlign.CENTER,
+                can_focus: true,
+                child: new St.Icon({ icon_name: 'view-pin-symbolic', icon_size: 12 }),
+            });
+            pinButton.connect('clicked', () => onTogglePin(sourceId, label));
+            row.add_child(pinButton);
+        }
+
         this.add_child(row);
 
         if (detail) {
@@ -163,11 +202,11 @@ class MetricRow extends St.BoxLayout {
 
 const SourceRow = GObject.registerClass(
 class SourceRow extends PopupMenu.PopupBaseMenuItem {
-    _init(source, extensionPath) {
+    _init(source, extensionPath, pins, onTogglePin) {
         super._init({ reactive: false, style_class: 'aau-source-row' });
 
         // D-Bus struct (sssa(sdds)s) unpacks to a plain array.
-        const [, label, icon, metrics, email] = source;
+        const [sourceId, label, icon, metrics, email] = source;
 
         const column = new St.BoxLayout({ vertical: true, x_expand: true, style: 'spacing: 2px;' });
 
@@ -198,7 +237,8 @@ class SourceRow extends PopupMenu.PopupBaseMenuItem {
         // Failed metrics are dropped, not painted; a source with nothing
         // usable left is skipped by the caller entirely.
         for (const metric of (metrics ?? []).filter(m => !isErrorMetric(m))) {
-            const row = new MetricRow(metric);
+            const row = new MetricRow(sourceId, metric,
+                pins.has(pinKey(sourceId, metric[0])), onTogglePin);
             column.add_child(row);
             row.attachDetailTo(column);
         }
@@ -213,22 +253,15 @@ class AntigravityIndicator extends PanelMenu.Button {
         super._init(0.0, 'AI Usage', false);
         this._extension = extension;
         this._sources = null;
+        this._pins = readPinnedMetrics();
         this._refreshing = false;
         this._fetchPending = false;
 
-        const box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
-        this._icon = new St.Icon({
-            gicon: getProviderIcon('generic', extension.path),
-            icon_size: 16,
+        this._panelBox = new St.BoxLayout({
+            style_class: 'panel-status-menu-box aau-panel-pins',
         });
-        this._label = new St.Label({
-            text: '…',
-            y_align: Clutter.ActorAlign.CENTER,
-            style_class: 'aau-panel-value',
-        });
-        box.add_child(this._icon);
-        box.add_child(this._label);
-        this.add_child(box);
+        this.add_child(this._panelBox);
+        this._updatePanel([]);
 
         this.menu.box.add_style_class_name('aau-menu');
         this._rebuildOffline();
@@ -277,7 +310,8 @@ class AntigravityIndicator extends PanelMenu.Button {
         if (!this._proxy.g_name_owner) {
             this._sources = null;
             this._rebuildOffline();
-            this._updatePanel(null);
+            this._pins = readPinnedMetrics();
+            this._updatePanel([]);
             return;
         }
         this._proxy.GetSourcesRemote((out, error) => {
@@ -288,42 +322,58 @@ class AntigravityIndicator extends PanelMenu.Button {
             // makeProxyWrapper hands out-args over as a tuple-array: [sources]
             const sources = Array.isArray(out) ? out[0] : out;
             this._sources = sources ?? [];
+            this._pins = readPinnedMetrics();
             this._refreshing = false;
             this._rebuildMenu();
-            this._updatePanel(this._sources[0] ?? null, this._sources);
+            this._updatePanel(this._sources);
         });
     }
 
-    _updatePanel(primary, allSources) {
-        if (!primary) {
-            this._label.text = '…';
-            this._icon.gicon = getProviderIcon('generic', this._extension.path);
-            return;
+    _updatePanel(allSources) {
+        for (const child of this._panelBox.get_children())
+            this._panelBox.remove_child(child);
+
+        const sources = allSources ?? [];
+        const pins = [...this._pins];
+        if (pins.length === 0)
+            pins.push('');
+
+        for (const key of pins) {
+            const [sourceId, metricLabel] = key.split('\t', 2);
+            const source = sources.find(item => item[0] === sourceId) ?? null;
+            const metric = source?.[3]?.find(item =>
+                item[0] === metricLabel && item[2] > 0 && !isErrorMetric(item)) ?? null;
+            const group = new St.BoxLayout({ style: 'spacing: 4px;' });
+            group.add_child(new St.Icon({
+                gicon: getProviderIcon(source?.[2] || 'generic', this._extension.path),
+                icon_size: 16,
+                y_align: Clutter.ActorAlign.CENTER,
+            }));
+            const text = metric
+                ? `${Math.round(Math.max(0, Math.min(100, metric[1] / metric[2] * 100)))}%`
+                : '…';
+            group.add_child(new St.Label({
+                text,
+                y_align: Clutter.ActorAlign.CENTER,
+                style_class: 'aau-panel-value',
+            }));
+            this._panelBox.add_child(group);
         }
-        const pickLive = (source) => {
-            const metrics = source[3] ?? [];
-            const live = metrics.find(([, , limit]) => limit > 0);
-            return live ? { source, metric: live } : null;
-        };
-        // Primary source first; fall back to any source with live data so the
-        // badge stays useful while e.g. the Antigravity IDE is closed.
-        let pick = pickLive(primary);
-        if (!pick && Array.isArray(allSources)) {
-            for (const source of allSources) {
-                pick = pickLive(source);
-                if (pick)
-                    break;
-            }
+    }
+
+    _togglePin(sourceId, metricLabel) {
+        const key = pinKey(sourceId, metricLabel);
+        if (this._pins.has(key))
+            this._pins.delete(key);
+        else
+            this._pins.add(key);
+        try {
+            writePinnedMetrics(this._pins);
+        } catch (e) {
+            console.warn(`antigravity-usage: saving pinned metrics failed: ${e}`);
         }
-        if (!pick) {
-            this._label.text = '…';
-            this._icon.gicon = getProviderIcon(primary[2] || 'generic', this._extension.path);
-            return;
-        }
-        const [, used, limit] = pick.metric;
-        const pct = Math.max(0, Math.min(100, used / limit * 100));
-        this._label.text = `${Math.round(pct)}%`;
-        this._icon.gicon = getProviderIcon(pick.source[2] || 'generic', this._extension.path);
+        this._rebuildMenu();
+        this._updatePanel(this._sources);
     }
 
     _buildFooter(offline) {
@@ -430,7 +480,8 @@ class AntigravityIndicator extends PanelMenu.Button {
         }
 
         for (const source of shown)
-            this.menu.addMenuItem(new SourceRow(source, this._extension.path));
+            this.menu.addMenuItem(new SourceRow(source, this._extension.path,
+                this._pins, (sourceId, metricLabel) => this._togglePin(sourceId, metricLabel)));
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
         this.menu.addMenuItem(this._buildFooter(false));

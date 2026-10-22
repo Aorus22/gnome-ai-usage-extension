@@ -15,8 +15,8 @@ import (
 const sampleConfig = `# AI Usage daemon configuration.
 #
 # Every [[source]] becomes one block in the panel menu. Each [[source.metric]]
-# is one progress bar under it. The source whose id matches "primary" is shown
-# as the panel badge (icon + percent of its first metric).
+# is one progress bar under it. "primary" controls which source appears first;
+# pin metrics in a panel client to show their percentages in the panel.
 #
 # Providers:
 #   command — run a command, capture its stdout

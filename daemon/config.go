@@ -64,7 +64,7 @@ type SourceCfg struct {
 
 // Config is the whole config.toml document.
 type Config struct {
-	// Primary is the id of the source shown as the panel badge.
+	// Primary is the id of the source listed first by the D-Bus service.
 	// Empty means the first declared source.
 	Primary string      `toml:"primary"`
 	Sources []SourceCfg `toml:"source"`
