@@ -103,3 +103,41 @@
     color: rgba(255, 255, 255, 0.45);
     max-width: 160px;
 }
+
+/* Light color scheme: swap the white tints for dark ones. */
+.aau-light .aau-metric-label {
+    color: rgba(0, 0, 0, 0.75);
+}
+
+.aau-light .aau-metric-track {
+    background-color: rgba(0, 0, 0, 0.12);
+}
+
+.aau-light .aau-pin-button {
+    color: rgba(0, 0, 0, 0.45);
+}
+
+.aau-light .aau-pin-button:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+    color: rgba(0, 0, 0, 0.85);
+}
+
+.aau-light .aau-pin-button.pinned {
+    color: #e5a50a;
+}
+
+.aau-light .aau-metric-detail {
+    color: rgba(0, 0, 0, 0.55);
+}
+
+.aau-light .aau-source-email {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.aau-light .aau-footer-btn {
+    background-color: rgba(0, 0, 0, 0.06);
+}
+
+.aau-light .aau-footer-btn:hover {
+    background-color: rgba(0, 0, 0, 0.14);
+}

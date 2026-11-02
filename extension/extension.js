@@ -264,6 +264,12 @@ class AntigravityIndicator extends PanelMenu.Button {
         this._updatePanel([]);
 
         this.menu.box.add_style_class_name('aau-menu');
+        // The shell popup follows the system color scheme; mirror it with a
+        // class so the stylesheet can switch its hardcoded white tints.
+        this._ifaceSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.interface' });
+        this._schemeId = this._ifaceSettings.connect('changed::color-scheme',
+            () => this._syncColorScheme());
+        this._syncColorScheme();
         this._rebuildOffline();
         this.menu.connect('open-state-changed', (menu, open) => {
             if (!open) {
@@ -334,31 +340,37 @@ class AntigravityIndicator extends PanelMenu.Button {
             this._panelBox.remove_child(child);
 
         const sources = allSources ?? [];
-        const pins = [...this._pins];
-        if (pins.length === 0)
-            pins.push('');
-
-        for (const key of pins) {
-            const [sourceId, metricLabel] = key.split('\t', 2);
-            const source = sources.find(item => item[0] === sourceId) ?? null;
-            const metric = source?.[3]?.find(item =>
-                item[0] === metricLabel && item[2] > 0 && !isErrorMetric(item)) ?? null;
+        const addGroup = (source, text) => {
             const group = new St.BoxLayout({ style: 'spacing: 4px;' });
             group.add_child(new St.Icon({
                 gicon: getProviderIcon(source?.[2] || 'generic', this._extension.path),
                 icon_size: 16,
                 y_align: Clutter.ActorAlign.CENTER,
             }));
-            const text = metric
-                ? `${Math.round(Math.max(0, Math.min(100, metric[1] / metric[2] * 100)))}%`
-                : '…';
             group.add_child(new St.Label({
                 text,
                 y_align: Clutter.ActorAlign.CENTER,
                 style_class: 'aau-panel-value',
             }));
             this._panelBox.add_child(group);
+        };
+
+        // Pinned metrics with no data (missing, errored, no limit) are
+        // skipped rather than shown as "…".
+        for (const key of this._pins) {
+            const [sourceId, metricLabel] = key.split('\t', 2);
+            const source = sources.find(item => item[0] === sourceId) ?? null;
+            const metric = source?.[3]?.find(item =>
+                item[0] === metricLabel && item[2] > 0 && !isErrorMetric(item)) ?? null;
+            if (!metric)
+                continue;
+            addGroup(source,
+                `${Math.round(Math.max(0, Math.min(100, metric[1] / metric[2] * 100)))}%`);
         }
+
+        // Keep the indicator from being empty (nothing pinned, or no data yet).
+        if (this._panelBox.get_n_children() === 0)
+            addGroup(null, '…');
     }
 
     _togglePin(sourceId, metricLabel) {
@@ -525,6 +537,14 @@ class AntigravityIndicator extends PanelMenu.Button {
         this._tooltip = tip;
     }
 
+    _syncColorScheme() {
+        const dark = this._ifaceSettings.get_string('color-scheme') === 'prefer-dark';
+        if (dark)
+            this.menu.box.remove_style_class_name('aau-light');
+        else
+            this.menu.box.add_style_class_name('aau-light');
+    }
+
     _hideTooltip() {
         this._tooltip?.destroy();
         this._tooltip = null;
@@ -532,6 +552,10 @@ class AntigravityIndicator extends PanelMenu.Button {
 
     destroy() {
         this._hideTooltip();
+        if (this._schemeId) {
+            this._ifaceSettings.disconnect(this._schemeId);
+            this._schemeId = null;
+        }
         if (this._ownerNotifyId) {
             this._proxy.disconnect(this._ownerNotifyId);
             this._ownerNotifyId = null;
