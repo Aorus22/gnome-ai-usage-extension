@@ -112,10 +112,10 @@ function writePinnedMetrics(pins) {
 const MetricRow = GObject.registerClass(
 class MetricRow extends St.BoxLayout {
     _init(sourceId, metric, pinned, onTogglePin) {
-        super._init({ vertical: true });
+        super._init({ orientation: Clutter.Orientation.VERTICAL });
         const [label, used, limit, detail] = metric;
 
-        const row = new St.BoxLayout({ vertical: false, style: 'spacing: 6px; margin-top: 2px;' });
+        const row = new St.BoxLayout({ orientation: Clutter.Orientation.HORIZONTAL, style: 'spacing: 6px; margin-top: 2px;' });
         const pct = limit > 0 ? Math.max(0, Math.min(100, used / limit * 100)) : 0;
 
         row.add_child(new St.Label({
@@ -178,7 +178,7 @@ class MetricRow extends St.BoxLayout {
 
         if (detail) {
             const detailRow = new St.BoxLayout({
-                vertical: false,
+                orientation: Clutter.Orientation.HORIZONTAL,
                 style: 'spacing: 6px; margin-top: 0px;',
             });
             detailRow.add_child(new St.Widget({ style: 'width: 78px;' }));
@@ -208,10 +208,10 @@ class SourceRow extends PopupMenu.PopupBaseMenuItem {
         // D-Bus struct (sssa(sdds)s) unpacks to a plain array.
         const [sourceId, label, icon, metrics, email] = source;
 
-        const column = new St.BoxLayout({ vertical: true, x_expand: true, style: 'spacing: 2px;' });
+        const column = new St.BoxLayout({ orientation: Clutter.Orientation.VERTICAL, x_expand: true, style: 'spacing: 2px;' });
 
         // Icon + provider name on the left, account email on the right.
-        const header = new St.BoxLayout({ vertical: false, style: 'spacing: 8px;' });
+        const header = new St.BoxLayout({ orientation: Clutter.Orientation.HORIZONTAL, style: 'spacing: 8px;' });
         header.add_child(new St.Icon({
             gicon: getProviderIcon(icon, extensionPath),
             icon_size: 16,
@@ -504,7 +504,7 @@ class AntigravityIndicator extends PanelMenu.Button {
         this.menu.removeAll();
 
         const offline = new PopupMenu.PopupBaseMenuItem({ reactive: false, style_class: 'aau-source-row' });
-        const box = new St.BoxLayout({ vertical: true });
+        const box = new St.BoxLayout({ orientation: Clutter.Orientation.VERTICAL });
         const line1 = new St.Label({ text: 'Daemon not running', style_class: 'aau-source-name' });
         const line2 = new St.Label({
             text: 'systemctl --user start antigravity-usage',

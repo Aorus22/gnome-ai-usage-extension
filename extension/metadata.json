@@ -2,5 +2,5 @@
   "uuid": "antigravity-usage@local",
   "name": "AI Usage",
   "description": "Live usage bars for AI providers (Antigravity, Codex, CoreWeave, ...) backed by a local daemon",
-  "shell-version": ["50"]
+  "shell-version": ["50", "51"]
 }
